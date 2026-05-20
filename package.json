@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "PoC: TRON CREATE2 calldata-bound proxy deployer",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "packageManager": "pnpm@9.15.0",
   "engines": {
