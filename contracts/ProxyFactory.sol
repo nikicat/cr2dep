@@ -12,7 +12,14 @@ pragma solidity 0.8.28;
 ///   [0x0a..0x37)  EIP-1167 minimal proxy stub delegating to `implementation`
 ///   [0x37..0x57)  the commitment — affects the init-code hash (→ CREATE2 address)
 ///                 but is never deployed as runtime
+///
+/// PREFIX is the CREATE2 prefix byte used by the host VM:
+///   0x41 for TRON, 0xff for standard EVM (Ethereum, EDR for tests).
+/// It only affects the `computeAddress` view function; the on-chain `deploy`
+/// uses the VM's native CREATE2 opcode regardless.
 contract ProxyFactory {
+    bytes1 public immutable PREFIX;
+
     event Deployed(
         address indexed proxy,
         address indexed implementation,
@@ -21,6 +28,10 @@ contract ProxyFactory {
     );
 
     error DeployFailed();
+
+    constructor(bytes1 prefix_) {
+        PREFIX = prefix_;
+    }
 
     function deploy(address implementation, bytes32 salt, bytes32 commitment)
         external
@@ -34,7 +45,7 @@ contract ProxyFactory {
         emit Deployed(proxy, implementation, commitment, salt);
     }
 
-    /// @notice TRON CREATE2: keccak256(0x41 ‖ factory ‖ salt ‖ keccak256(initCode))[12:]
+    /// @notice CREATE2 address derivation: keccak256(PREFIX ‖ factory ‖ salt ‖ keccak256(initCode))[12:]
     function computeAddress(address implementation, bytes32 salt, bytes32 commitment)
         external
         view
@@ -42,7 +53,7 @@ contract ProxyFactory {
     {
         bytes32 codeHash = keccak256(_initCode(implementation, commitment));
         return address(uint160(uint256(keccak256(
-            abi.encodePacked(bytes1(0x41), address(this), salt, codeHash)
+            abi.encodePacked(PREFIX, address(this), salt, codeHash)
         ))));
     }
 

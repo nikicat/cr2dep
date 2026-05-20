@@ -13,21 +13,27 @@ pragma solidity 0.8.28;
 /// Verification: re-derive the CREATE2 address from (FACTORY, salt, keccak256(initCode))
 /// where initCode embeds SELF and `commitment = keccak256(abi.encode(target, data))`,
 /// and require it equals `address(this)` (the proxy in delegatecall context).
+///
+/// PREFIX is the CREATE2 prefix byte (0x41 for TRON, 0xff for standard EVM). Must
+/// match the PREFIX of the deploying factory — otherwise every binding check fails.
 contract BoundCaller {
     /// @notice This contract's own address (set at construction, inlined via immutable
     /// so it stays correct under delegatecall — `address(this)` would be the proxy).
     address public immutable SELF;
     /// @notice The factory that's permitted to mint proxies referencing this impl.
     address public immutable FACTORY;
+    /// @notice CREATE2 prefix byte. Must match the factory's PREFIX.
+    bytes1 public immutable PREFIX;
 
     event Executed(bytes32 indexed commitment, bytes32 salt, address indexed target);
 
     error BindingMismatch();
     error CallReverted(bytes returnData);
 
-    constructor(address factory_) {
+    constructor(address factory_, bytes1 prefix_) {
         SELF = address(this);
         FACTORY = factory_;
+        PREFIX = prefix_;
     }
 
     /// @notice Triggers `target.call{value: msg.value}(data)` from the proxy, provided
@@ -59,7 +65,7 @@ contract BoundCaller {
             commitment
         ));
         return address(uint160(uint256(keccak256(
-            abi.encodePacked(bytes1(0x41), FACTORY, salt, codeHash)
+            abi.encodePacked(PREFIX, FACTORY, salt, codeHash)
         ))));
     }
 }

@@ -11,6 +11,7 @@
   "scripts": {
     "compile": "hardhat compile",
     "cli": "tsx src/cli.ts",
+    "test": "hardhat test nodejs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,6 +22,7 @@
     "viem": "^2.21.55"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.5",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.5",
     "hardhat": "^3.0.0",

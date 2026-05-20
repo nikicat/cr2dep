@@ -13,7 +13,7 @@ import {
   type Pair,
 } from "./db.js";
 import { toEvmAddress, toTronAddress } from "./tron.js";
-import { commitmentOf, predictProxyAddress } from "./create2.js";
+import { commitmentOf, predictProxyAddress, TRON_PREFIX } from "./create2.js";
 import { factoryArtifact, implArtifact } from "./artifacts.js";
 
 const ZERO_SALT = ("0x" + "00".repeat(32)) as Hex;
@@ -115,7 +115,9 @@ program
     initDb();
     const tw = makeTronWeb(true);
     const { abi, bytecode } = factoryArtifact();
-    const { tron, txID } = await deployContract(tw, "ProxyFactory", abi, bytecode, []);
+    const { tron, txID } = await deployContract(tw, "ProxyFactory", abi, bytecode, [
+      { type: "bytes1", value: TRON_PREFIX.replace(/^0x/, "") },
+    ]);
     saveConfig({ ...loadConfig(), factoryAddress: tron });
     console.log(`factory deployed: ${tron}`);
     console.log(`tx: ${txID}`);
@@ -123,7 +125,7 @@ program
 
 program
   .command("deploy-impl")
-  .description("deploy the OneTimeCallerImpl bound to the configured factory")
+  .description("deploy the BoundCaller bound to the configured factory")
   .action(async () => {
     initDb();
     const cfg = loadConfig();
@@ -133,6 +135,7 @@ program
     const factoryEvm = toEvmAddress(cfg.factoryAddress);
     const { tron, txID } = await deployContract(tw, "BoundCaller", abi, bytecode, [
       { type: "address", value: factoryEvm },
+      { type: "bytes1", value: TRON_PREFIX.replace(/^0x/, "") },
     ]);
     saveConfig({ ...cfg, implementationAddress: tron });
     console.log(`implementation deployed: ${tron}`);

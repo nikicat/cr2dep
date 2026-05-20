@@ -7,6 +7,11 @@ import {
   type Hex,
 } from "viem";
 
+/** TRON's CREATE2 prefix byte (replaces EVM's 0xff). */
+export const TRON_PREFIX = "0x41" as const satisfies Hex;
+/** Standard EVM CREATE2 prefix byte (Ethereum, EDR). */
+export const EVM_PREFIX = "0xff" as const satisfies Hex;
+
 /** Commitment hashed into the proxy's init code. Matches Solidity's
  * `keccak256(abi.encode(target, data))`. */
 export function commitmentOf(target: Hex, data: Hex): Hex {
@@ -34,31 +39,34 @@ export function buildProxyInitCode(implementation: Hex, commitment: Hex): Hex {
 }
 
 /**
- * TRON CREATE2 address derivation:
- *   keccak256(0x41 ‖ deployer[20] ‖ salt[32] ‖ keccak256(init_code))[12:32]
+ * CREATE2 address derivation:
+ *   keccak256(prefix ‖ deployer[20] ‖ salt[32] ‖ keccak256(init_code))[12:32]
  *
- * The 0x41 prefix byte is the TRON-specific replacement for EVM's 0xff.
+ * `prefix` is the network's CREATE2 prefix byte — TRON uses 0x41, standard EVM
+ * (Ethereum, EDR) uses 0xff. Defaults to TRON since that's the production target.
  */
 export function computeCreate2Address(
   deployer: Hex,
   salt: Hex,
   initCode: Hex,
+  prefix: Hex = TRON_PREFIX,
 ): Hex {
   const paddedSalt = padHex(salt, { size: 32 });
   const initCodeHash = keccak256(initCode);
-  const pre = concat(["0x41", deployer, paddedSalt, initCodeHash]);
+  const pre = concat([prefix, deployer, paddedSalt, initCodeHash]);
   return slice(keccak256(pre), 12) as Hex;
 }
 
-/** Convenience: full pipeline from (factory, impl, salt, target, data) → proxy address. */
+/** Convenience: full pipeline from (factory, impl, salt, target, data, prefix) → proxy address. */
 export function predictProxyAddress(
   factory: Hex,
   implementation: Hex,
   salt: Hex,
   target: Hex,
   data: Hex,
+  prefix: Hex = TRON_PREFIX,
 ): Hex {
   const commitment = commitmentOf(target, data);
   const initCode = buildProxyInitCode(implementation, commitment);
-  return computeCreate2Address(factory, salt, initCode);
+  return computeCreate2Address(factory, salt, initCode, prefix);
 }

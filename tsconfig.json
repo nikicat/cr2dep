@@ -9,5 +9,10 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "hardhat.config.ts"]
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "hardhat.config.ts",
+    "artifacts/**/*.d.ts"
+  ]
 }
