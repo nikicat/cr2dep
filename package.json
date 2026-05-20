@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "browser-tron-signer": "link:../mcp-wallet-signer-mod/packages/browser-tron-signer/npm",
     "commander": "^12.1.0",
     "dotenv": "^16.4.7",
     "tronweb": "^6.0.0",

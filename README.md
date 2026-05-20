@@ -40,24 +40,35 @@ Pairs are stored in a small SQLite DB; addresses are recomputed on demand and ne
 
 - Node ≥ 20
 - `pnpm` (the repo declares `packageManager: pnpm@9.15.0` — Corepack will fetch it)
-- A TRON private key with TRX for fees (Nile testnet faucet: <https://nileex.io/join/getJoinPage>)
+- A funded TRON account with TRX for fees. Either:
+  - **Browser wallet** (default): [TronLink](https://www.tronlink.org) installed in a browser. Nile testnet faucet: <https://nileex.io/join/getJoinPage>.
+  - **Local key** (opt-in, CI/unattended): a TRON private key in `PRIVATE_KEY`.
 
 ## Setup
 
 ```bash
 pnpm install
 pnpm compile
-cp .env.example .env  # fill PRIVATE_KEY, TRON_RPC, optionally TRON_API_KEY
+cp .env.example .env  # set TRON_RPC; leave PRIVATE_KEY blank to use TronLink
 pnpm cli init         # creates cr2dep.db
 ```
+
+### Signing
+
+The CLI uses [`browser-tron-signer`](https://www.npmjs.com/package/browser-tron-signer) by default — every signing command spins up a small local HTTP server, opens a TronLink approval page in your browser, and waits for you to approve. No key ever touches the server.
+
+If `PRIVATE_KEY` is set in the environment, it's used directly instead (handy for CI). When unset, browser signing is used.
 
 Env vars:
 
 | Var             | Default                      | Notes                                  |
 | --------------- | ---------------------------- | -------------------------------------- |
-| `PRIVATE_KEY`   | _(required for tx commands)_ | TRON private key, hex (with or without `0x`) |
+| `PRIVATE_KEY`   | unset                        | Opt-in fallback. If set, signs locally with this key instead of TronLink. Hex (with or without `0x`). |
 | `TRON_RPC`      | `https://nile.trongrid.io`   | Full-node HTTP endpoint                |
 | `TRON_API_KEY`  | unset                        | Trongrid API key (raises rate limits)  |
+| `TRON_NETWORK`  | inferred from `TRON_RPC`     | Browser-signer network: `mainnet` / `shasta` / `nile` |
+| `TRON_MCP_PORT` | `3848`                       | Local HTTP port for the browser approval UI |
+| `BROWSER`       | OS default                   | Force a specific browser for the approval page (e.g. `firefox`, `brave-browser`). Useful when TronLink isn't installed in your default browser. |
 
 ## Deploy the on-chain singletons
 
@@ -90,9 +101,28 @@ pnpm cli deploy  1         # CREATE2-deploys the proxy bound to pair #1
 pnpm cli execute 1         # call execute(salt, target, data) on the proxy — anyone can do this
 ```
 
-`add` only writes to SQLite — no network call, no funds needed. `deploy` and `execute` are the only commands that broadcast transactions.
+`add` only writes to SQLite — no network call, no funds needed. `deploy-factory`, `deploy-impl`, `deploy`, and `execute` are the only commands that broadcast transactions; each will pop a TronLink approval page in your browser unless `PRIVATE_KEY` is set.
 
 The same proxy address can be re-`execute`d as many times as you like; the address binding is what's enforced, not one-shot semantics. (If you want one-shot, gate it with a storage slot in `BoundCaller`.)
+
+### Sample bindings (TRON mainnet)
+
+The proxy only ever does its single bound action, so for sanity-checking the pipeline you want something cheap and harmless. Two options against USDT (`TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`):
+
+```bash
+# Read-only: balanceOf(0x0...0) — view call, return value discarded, proxy holds nothing.
+pnpm cli add \
+  --target TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t \
+  --data 0x70a082310000000000000000000000000000000000000000000000000000000000000000
+
+# Tiny write: approve(TPL66VK2gCXNCD7EJg9pgJRfqcRazjhUZY, 0) — observable on Tronscan,
+# revokes any allowance from the proxy to that spender (zero before, zero after — no-op revoke).
+pnpm cli add \
+  --target TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t \
+  --data 0x095ea7b3000000000000000000000000922953dcf6886cf3afe9faf80f93922e57b1b0fd0000000000000000000000000000000000000000000000000000000000000000
+```
+
+Mainnet deploys burn real TRX (rough order: 200–500 TRX per singleton, ~30 per proxy). To verify the wiring without spending mainnet TRX, point `TRON_RPC` at Nile (`https://nile.trongrid.io`) and use the [Nile faucet](https://nileex.io/join/getJoinPage).
 
 ## Tests
 
@@ -120,6 +150,7 @@ contracts/
   test/TestTarget.sol      tiny counter target used by tests only
 src/
   cli.ts                   commander CLI
+  signer.ts                browser-tron-signer + PRIVATE_KEY fallback, as an AsyncDisposable
   create2.ts               commitmentOf / buildProxyInitCode / predictProxyAddress
   artifacts.ts             loads Hardhat 3 artifacts
   tron.ts                  T-base58 ↔ 0x EVM hex (via TronWeb static utils)

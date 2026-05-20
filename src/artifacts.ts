@@ -1,8 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import type { Types as TronTypes } from "tronweb";
 import type { Hex } from "viem";
 
-export type Artifact = { abi: unknown[]; bytecode: Hex };
+export type Artifact = { abi: TronTypes.ContractAbiInterface; bytecode: Hex };
 
 function loadArtifact(name: string): Artifact {
   const candidate = path.resolve(
